@@ -1,0 +1,6 @@
+{
+  "name": "Nile Crocodile — Procedural 3D Anatomy & Kinematics",
+  "description": "Interactive procedurally generated 3D Nile Crocodile (Crocodylus niloticus) with anatomical lofted geometry, procedural 1024px PBR skin textures, inverse-kinematics tetrapod locomotion, studio & riverbank environments, and .GLB export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
