@@ -26,6 +26,7 @@ export interface ControlDockProps {
   exportMessage: string | null;
   onModeChange: (mode: AnimationMode) => void;
   onTriggerBite: () => void;
+  onTriggerBlink: () => void;
   onParamChange: <K extends keyof CrocControlParams>(key: K, value: CrocControlParams[K]) => void;
   onEnvironmentChange: (env: EnvironmentMode) => void;
   onToggleWireframe: () => void;
@@ -56,6 +57,7 @@ export const ControlDock: React.FC<ControlDockProps> = ({
   exportMessage,
   onModeChange,
   onTriggerBite,
+  onTriggerBlink,
   onParamChange,
   onEnvironmentChange,
   onToggleWireframe,
@@ -89,6 +91,8 @@ export const ControlDock: React.FC<ControlDockProps> = ({
             <span>Shift Sprint</span>
             <span aria-hidden="true" className="text-stone-500">·</span>
             <span>Space Bite</span>
+            <span aria-hidden="true" className="text-stone-500">·</span>
+            <span>B Blink</span>
             <span aria-hidden="true" className="text-stone-500">·</span>
             <span>H Toggle HUD</span>
           </div>
@@ -143,6 +147,16 @@ export const ControlDock: React.FC<ControlDockProps> = ({
               >
                 <Zap className="h-3.5 w-3.5" />
                 <span>Bite</span>
+              </button>
+
+              {/* On-Demand Eye Blink Trigger */}
+              <button
+                type="button"
+                onClick={onTriggerBlink}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/8 px-2.5 py-1.5 text-xs font-medium text-stone-200 transition-colors hover:bg-white/15 hover:text-white whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-amber-400"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                <span>Blink</span>
               </button>
             </div>
 

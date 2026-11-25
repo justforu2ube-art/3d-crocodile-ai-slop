@@ -4,6 +4,7 @@ import {
   createInitialKinematicsState,
   stepKinematics,
   triggerBiteAction,
+  triggerBlinkAction,
   solveReptileLimbIK,
   TAIL_SEGMENT_COUNT,
   type CrocControlParams,
@@ -43,7 +44,7 @@ test('idle state maintains alert posture and finite transforms without input', (
     pose = stepKinematics(state, baseParams, neutralKeys, 1 / 60);
   }
   assert.equal(pose.resolvedMode, 'idle');
-  assert.ok(pose.pelvisY > 0.45 && pose.pelvisY < 0.62, `Expected alert pelvisY, got ${pose.pelvisY}`);
+  assert.ok(pose.pelvisY > 0.36 && pose.pelvisY < 0.54, `Expected alert pelvisY, got ${pose.pelvisY}`);
   assert.equal(pose.tailYaw.length, TAIL_SEGMENT_COUNT);
   assert.equal(pose.tailPitch.length, TAIL_SEGMENT_COUNT);
   assert.ok(pose.tailYaw.every((v) => Number.isFinite(v)));
@@ -139,6 +140,23 @@ test('bite trigger opens jaw to ~42 deg then violently snaps shut with recoil', 
   assert.ok(peakJawDeg >= 38 && peakJawDeg <= 45, `Expected peak bite jaw ~42 deg, got ${peakJawDeg}`);
   assert.ok(peakRecoil > 0.5, `Expected noticeable bite recoil, got ${peakRecoil}`);
   assert.equal(state.biteTimer, -1, 'Bite timer should settle cleanly back to inactive');
+});
+
+test('blink trigger closes eyelids fully then reopens smoothly', () => {
+  const state = createInitialKinematicsState();
+  triggerBlinkAction(state);
+  let peakBlink = 0;
+  let lastBlink = 1;
+
+  for (let i = 0; i < 30; i++) {
+    const pose = stepKinematics(state, baseParams, neutralKeys, 0.02);
+    peakBlink = Math.max(peakBlink, pose.blinkAmount);
+    lastBlink = pose.blinkAmount;
+  }
+
+  assert.ok(peakBlink >= 0.95, `Expected full blink closure >= 0.95, got ${peakBlink}`);
+  assert.ok(lastBlink < 0.05, `Expected eye reopened after blink, got ${lastBlink}`);
+  assert.equal(state.blinkTimer, -1, 'Blink timer should settle cleanly back to inactive');
 });
 
 test('WASD forward + turn drives crocodile along curved heading with spine steering', () => {

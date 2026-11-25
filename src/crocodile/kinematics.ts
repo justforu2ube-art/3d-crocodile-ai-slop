@@ -134,6 +134,10 @@ export function triggerBiteAction(state: KinematicsState): void {
   state.biteTimer = 0;
 }
 
+export function triggerBlinkAction(state: KinematicsState): void {
+  state.blinkTimer = 0;
+}
+
 function damp(current: number, target: number, lambda: number, dt: number): number {
   return current + (target - current) * (1 - Math.exp(-lambda * dt));
 }
@@ -220,13 +224,13 @@ export function solveReptileLimbIK(params: {
 
   // Analytical sprawling reptile posture:
   // Upper arm/thigh extends OUTWARD (+sideSign*X) and slightly downward; forearm/shin drops to flat foot on Y=0!
-  const socketHeight = clamp(pelvisY + (isFront ? -0.055 : -0.042), 0.22, 0.70);
+  const socketHeight = clamp(pelvisY + (isFront ? -0.062 : -0.048), 0.20, 0.68);
   const footLiftY = effectiveLift * (isFront ? 0.14 : 0.12) * (1 - swimTuck);
-  const footPadH = 0.045;
+  const footPadH = 0.046;
 
-  // Segment lengths matching crocodileBuilder.ts
-  const upperLen = isFront ? 0.32 : 0.36;
-  const lowerLen = isFront ? 0.32 : 0.35;
+  // Segment lengths matching sleek predatory crocodileBuilder.ts
+  const upperLen = isFront ? 0.28 : 0.32;
+  const lowerLen = isFront ? 0.26 : 0.29;
 
   // Forearm/shin tilts slightly outward from vertical (~0.16 rad in high-walk, ~0.34 rad in belly crawl)
   const forearmOutTilt = (isFront ? 0.16 : 0.14) + (1 - highWalkFactor) * 0.18;
@@ -442,16 +446,18 @@ export function stepKinematics(
     }
   }
 
-  // Periodic natural eyelid blink
+  // Periodic natural eyelid + nictitating membrane blink (realistic snappy close, smooth open)
   let blinkAmount = 0;
   if (state.blinkTimer >= 0) {
     state.blinkTimer += dt;
-    const dur = 0.26;
+    const dur = 0.34;
     if (state.blinkTimer < dur) {
-      blinkAmount = Math.sin((state.blinkTimer / dur) * Math.PI);
+      const p = state.blinkTimer / dur;
+      // Snappy close (0..0.38) -> brief hold -> smooth open (0.38..1.0)
+      blinkAmount = p < 0.38 ? Math.sin((p / 0.38) * Math.PI * 0.5) : Math.cos(((p - 0.38) / 0.62) * Math.PI * 0.5);
     } else {
       state.blinkTimer = -1;
-      state.nextBlinkTime = t + 2.8 + (Math.sin(t * 7.13) * 0.5 + 0.5) * 3.8;
+      state.nextBlinkTime = t + 2.2 + (Math.sin(t * 7.13) * 0.5 + 0.5) * 2.4;
     }
   } else if (t >= state.nextBlinkTime) {
     state.blinkTimer = 0;
@@ -459,22 +465,19 @@ export function stepKinematics(
 
   // Breathing & gular throat pulse
   const breathCycle = Math.sin(t * 1.45);
-  const breathScale = 1.0 + breathCycle * 0.022 * (1 - wSwim * 0.4);
-  const throatPulse = Math.sin(t * 2.2 + 0.5) * 0.012;
+  const breathScale = 1.0 + breathCycle * 0.025 * (1 - wSwim * 0.4);
+  const throatPulse = Math.sin(t * 2.2 + 0.5) * 0.016;
 
   // Pelvis elevation above Y=0:
-  // Idle matches reference semi-erect alert stance (~0.52m)
-  // Belly crawl lowers torso close to ground (~0.33m)
-  // High walk elevates torso (~0.56m) with energetic stride bounce
-  // Swim floats steadily in shallow water (~0.36m)
+  // Heavy barrel torso hangs ~0.34m below spine centerline, so pelvisY=0.52 gives ~0.16m realistic ground clearance matching reference!
   const strideBounce =
     Math.abs(Math.sin(state.gaitPhase)) * (wWalk * 0.02 + wHighWalk * 0.045);
   const swimBob = Math.sin(t * 2.1) * 0.015 * wSwim;
   const pelvisY =
-    wIdle * 0.51 +
-    wWalk * 0.34 +
-    wHighWalk * 0.56 +
-    wSwim * 0.36 +
+    wIdle * 0.42 +
+    wWalk * 0.33 +
+    wHighWalk * 0.49 +
+    wSwim * 0.35 +
     strideBounce +
     swimBob -
     biteRecoil * 0.025;

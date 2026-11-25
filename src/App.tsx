@@ -6,6 +6,7 @@ import {
   createInitialKinematicsState,
   stepKinematics,
   triggerBiteAction,
+  triggerBlinkAction,
   type AnimationMode,
   type CrocControlParams,
   type EnvironmentMode,
@@ -107,6 +108,8 @@ export default function App() {
       else if (code === 'Space') {
         e.preventDefault();
         triggerBiteAction(kinStateRef.current);
+      } else if (code === 'KeyB') {
+        triggerBlinkAction(kinStateRef.current);
       } else if (code === 'KeyH') {
         setCollapsed((c) => !c);
       }
@@ -188,10 +191,10 @@ export default function App() {
     const width = container.clientWidth || window.innerWidth;
     const height = container.clientHeight || window.innerHeight;
     const camera = new THREE.PerspectiveCamera(34, width / height, 0.08, 120);
-    camera.position.set(4.35, 1.52, 3.35);
+    camera.position.set(4.95, 1.62, 3.70);
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0.05, 0.34, 0.16);
+    controls.target.set(0.0, 0.30, 0.02);
     controls.enableDamping = !isSoftwareGl;
     controls.dampingFactor = 0.06;
     controls.maxPolarAngle = Math.PI * 0.492;
@@ -359,6 +362,10 @@ export default function App() {
     triggerBiteAction(kinStateRef.current);
   }, []);
 
+  const handleTriggerBlink = useCallback(() => {
+    triggerBlinkAction(kinStateRef.current);
+  }, []);
+
   const handleParamChange = useCallback(
     <K extends keyof CrocControlParams>(key: K, value: CrocControlParams[K]) => {
       setParams((prev) => ({ ...prev, [key]: value }));
@@ -453,6 +460,7 @@ export default function App() {
         exportMessage={exportMessage}
         onModeChange={handleModeChange}
         onTriggerBite={handleTriggerBite}
+        onTriggerBlink={handleTriggerBlink}
         onParamChange={handleParamChange}
         onEnvironmentChange={handleEnvironmentChange}
         onToggleWireframe={() => setWireframe((w) => !w)}
