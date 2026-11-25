@@ -16,6 +16,11 @@ import { createCrocodileTextures } from './crocodile/textures';
 import { buildNileCrocodile, type CrocodileRig } from './crocodile/crocodileBuilder';
 import { createSceneEnvironments, type SceneEnvironmentRig } from './crocodile/environment';
 import { exportCrocodileToGLB } from './crocodile/glbExporter';
+import {
+  buildShareUrl,
+  parseViewStateFromSearch,
+  type SharedViewState,
+} from './crocodile/viewShare';
 import { ControlDock } from './components/ControlDock';
 
 function detectSoftwareWebGL(): boolean {
@@ -34,39 +39,51 @@ function detectSoftwareWebGL(): boolean {
 }
 
 export default function App() {
+  const initialViewRef = useRef<SharedViewState | null>(null);
+  if (initialViewRef.current === null) {
+    initialViewRef.current = parseViewStateFromSearch(
+      typeof window !== 'undefined' ? window.location.search : ''
+    );
+  }
+  const initialView = initialViewRef.current;
+
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
   const crocRigRef = useRef<CrocodileRig | null>(null);
   const envRigRef = useRef<SceneEnvironmentRig | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const kinStateRef = useRef(createInitialKinematicsState());
+  const shareTimerRef = useRef<number | null>(null);
 
-  // React UI state
-  const [params, setParams] = useState<CrocControlParams>({
-    mode: 'idle',
-    walkSpeed: 1.0,
-    manualJawAngleDeg: 0,
-    tailSwayIntensity: 1.0,
-    wetness: 0.14,
-    environment: 'studio',
-  });
-  const [resolvedMode, setResolvedMode] = useState<Exclude<AnimationMode, 'autoDemo'>>('idle');
-  const [wireframe, setWireframe] = useState(false);
-  const [showSkeleton, setShowSkeleton] = useState(false);
-  const [autoRotate, setAutoRotate] = useState(false);
-  const [followCamera, setFollowCamera] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  // React UI state hydrated cleanly from URL share parameters (or confirmed defaults)
+  const [params, setParams] = useState<CrocControlParams>(initialView.params);
+  const [resolvedMode, setResolvedMode] = useState<Exclude<AnimationMode, 'autoDemo'>>(
+    initialView.params.mode === 'autoDemo' ? 'idle' : initialView.params.mode
+  );
+  const [wireframe, setWireframe] = useState(initialView.wireframe);
+  const [showSkeleton, setShowSkeleton] = useState(initialView.showSkeleton);
+  const [autoRotate, setAutoRotate] = useState(initialView.autoRotate);
+  const [followCamera, setFollowCamera] = useState(initialView.followCamera);
+  const [collapsed, setCollapsed] = useState(initialView.collapsed);
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
   const [webglError, setWebglError] = useState<string | null>(null);
 
   // Mutable refs mirrored from React state so the WebGL render loop never re-mounts or recreates scene
   const paramsRef = useRef(params);
   paramsRef.current = params;
+  const wireframeRef = useRef(wireframe);
+  wireframeRef.current = wireframe;
+  const showSkeletonRef = useRef(showSkeleton);
+  showSkeletonRef.current = showSkeleton;
   const autoRotateRef = useRef(autoRotate);
   autoRotateRef.current = autoRotate;
   const followCameraRef = useRef(followCamera);
   followCameraRef.current = followCamera;
+  const collapsedRef = useRef(collapsed);
+  collapsedRef.current = collapsed;
 
   const keysRef = useRef<InputKeys>({
     forward: false,
@@ -187,14 +204,17 @@ export default function App() {
     roomEnv.dispose();
     pmremGenerator.dispose();
 
-    // Camera framed to showcase the full crocodile (snout tip to curving serrated tail) matching the reference studio angle!
+    // Camera hydrated from shared URL or elevated high-angle overhead Studio view
     const width = container.clientWidth || window.innerWidth;
     const height = container.clientHeight || window.innerHeight;
     const camera = new THREE.PerspectiveCamera(34, width / height, 0.08, 120);
-    camera.position.set(4.95, 1.62, 3.70);
+    const [cx, cy, cz] = initialViewRef.current!.cameraPosition;
+    const [tx, ty, tz] = initialViewRef.current!.cameraTarget;
+    camera.position.set(cx, cy, cz);
+    cameraRef.current = camera;
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0.0, 0.30, 0.02);
+    controls.target.set(tx, ty, tz);
     controls.enableDamping = !isSoftwareGl;
     controls.dampingFactor = 0.06;
     controls.maxPolarAngle = Math.PI * 0.492;
@@ -213,6 +233,9 @@ export default function App() {
 
     const envRig = createSceneEnvironments(scene, textures, isSoftwareGl, maxAniso);
     envRigRef.current = envRig;
+    envRig.setMode(paramsRef.current.environment, scene);
+    crocRig.setWireframe(wireframeRef.current);
+    crocRig.setSkeletonVisible(showSkeletonRef.current);
 
     // Apply initial hero pose immediately before first render
     const initialPose = stepKinematics(kinStateRef.current, paramsRef.current, keysRef.current, 0.016);
@@ -382,6 +405,72 @@ export default function App() {
     }));
   }, []);
 
+  const handleShareLink = useCallback(async () => {
+    const cam = cameraRef.current;
+    const ctrl = controlsRef.current;
+    const shareUrl = buildShareUrl(window.location.href, {
+      params: paramsRef.current,
+      wireframe: wireframeRef.current,
+      showSkeleton: showSkeletonRef.current,
+      autoRotate: autoRotateRef.current,
+      followCamera: followCameraRef.current,
+      collapsed: collapsedRef.current,
+      cameraPosition: cam
+        ? [cam.position.x, cam.position.y, cam.position.z]
+        : initialViewRef.current!.cameraPosition,
+      cameraTarget: ctrl
+        ? [ctrl.target.x, ctrl.target.y, ctrl.target.z]
+        : initialViewRef.current!.cameraTarget,
+    });
+
+    try {
+      window.history.replaceState(null, '', shareUrl);
+    } catch {
+      // Ignore history restriction in sandboxed iframes
+    }
+
+    let copied = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        copied = true;
+      }
+    } catch {
+      copied = false;
+    }
+
+    if (!copied) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = shareUrl;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        copied = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch {
+        copied = false;
+      }
+    }
+
+    setShareCopied(true);
+    setExportMessage(
+      copied
+        ? 'Share link copied with current pose & camera angle'
+        : 'Link updated in browser address bar — copy to share'
+    );
+    if (shareTimerRef.current !== null) {
+      window.clearTimeout(shareTimerRef.current);
+    }
+    shareTimerRef.current = window.setTimeout(() => {
+      setShareCopied(false);
+      setExportMessage(null);
+      shareTimerRef.current = null;
+    }, 3200);
+  }, []);
+
   const handleExportGLB = useCallback(async () => {
     if (!crocRigRef.current || exporting) return;
     setExporting(true);
@@ -458,6 +547,7 @@ export default function App() {
         collapsed={collapsed}
         exporting={exporting}
         exportMessage={exportMessage}
+        shareCopied={shareCopied}
         onModeChange={handleModeChange}
         onTriggerBite={handleTriggerBite}
         onTriggerBlink={handleTriggerBlink}
@@ -468,6 +558,7 @@ export default function App() {
         onToggleAutoRotate={() => setAutoRotate((r) => !r)}
         onToggleFollowCamera={() => setFollowCamera((f) => !f)}
         onToggleCollapsed={() => setCollapsed((c) => !c)}
+        onShareLink={handleShareLink}
         onExportGLB={handleExportGLB}
       />
     </main>

@@ -1,10 +1,12 @@
 import React from 'react';
 import {
+  Check,
   ChevronDown,
   ChevronUp,
   Download,
   Eye,
   Grid3X3,
+  Link2,
   Orbit,
   Bone,
   Waves,
@@ -24,6 +26,7 @@ export interface ControlDockProps {
   collapsed: boolean;
   exporting: boolean;
   exportMessage: string | null;
+  shareCopied: boolean;
   onModeChange: (mode: AnimationMode) => void;
   onTriggerBite: () => void;
   onTriggerBlink: () => void;
@@ -34,6 +37,7 @@ export interface ControlDockProps {
   onToggleAutoRotate: () => void;
   onToggleFollowCamera: () => void;
   onToggleCollapsed: () => void;
+  onShareLink: () => void;
   onExportGLB: () => void;
 }
 
@@ -55,6 +59,7 @@ export const ControlDock: React.FC<ControlDockProps> = ({
   collapsed,
   exporting,
   exportMessage,
+  shareCopied,
   onModeChange,
   onTriggerBite,
   onTriggerBlink,
@@ -65,6 +70,7 @@ export const ControlDock: React.FC<ControlDockProps> = ({
   onToggleAutoRotate,
   onToggleFollowCamera,
   onToggleCollapsed,
+  onShareLink,
   onExportGLB,
 }) => {
   return (
@@ -190,6 +196,19 @@ export const ControlDock: React.FC<ControlDockProps> = ({
                   <span>Riverbank</span>
                 </button>
               </div>
+
+              <button
+                type="button"
+                onClick={onShareLink}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-amber-400 ${
+                  shareCopied
+                    ? 'border-emerald-400/50 bg-emerald-500/20 text-emerald-200'
+                    : 'border-white/15 bg-white/8 text-stone-100 hover:bg-white/15 hover:text-white'
+                }`}
+              >
+                {shareCopied ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
+                <span>{shareCopied ? 'Link Copied' : 'Share Link'}</span>
+              </button>
 
               <button
                 type="button"
